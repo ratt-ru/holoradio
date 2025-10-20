@@ -19,3 +19,18 @@ holoradio = "holoradio:main"
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+    "ruff>=0.14.1",
+    "pre-commit>=3.8.0",
+]
+
+[tool.ruff]
+line-length = 88
+indent-width = 2
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["F", "E", "W", "I001"]
+extend-select = ["I"]
