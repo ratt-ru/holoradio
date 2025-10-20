@@ -1,13 +1,14 @@
-import numpy as np
 import jax
 import jax.numpy as jnp
-
+import numpy as np
 from holoscan.conditions import CountCondition
-from holoscan.core import Application, Fragment, Operator, OperatorSpec
+from holoscan.core import Application, Operator, OperatorSpec
+
 
 class HoloRadio(Application):
   def compose(self):
-    data_gen = DataGeneratorOp(self, CountCondition(self, count=10), name="data_gen")
+    count_condition = CountCondition(self, count=10)
+    data_gen = DataGeneratorOp(self, count_condition, name="data_gen")
     flag_op = FlagOp(self, name="flagger")
     calibrate_op = CalibrationOp(self, name="calibration")
     self.add_flow(data_gen, flag_op, {("vis", "vis"), ("flag", "flag")})
@@ -15,8 +16,18 @@ class HoloRadio(Application):
     self.add_flow(data_gen, calibrate_op, {("weight", "weight")})
     self.add_flow(flag_op, calibrate_op, {("flag", "flag")})
 
+
 class DataGeneratorOp(Operator):
-  def __init__(self, fragment, *args, times=128, baselines=2016, frequencies=128, polarizations=4, **kwargs):
+  def __init__(
+    self,
+    fragment,
+    *args,
+    times=128,
+    baselines=2016,
+    frequencies=128,
+    polarizations=4,
+    **kwargs,
+  ):
     super().__init__(fragment, *args, **kwargs)
     self.times = times
     self.baselines = baselines
@@ -40,14 +51,17 @@ class DataGeneratorOp(Operator):
     op_output.emit(flag, "flag")
     op_output.emit(vis, "vis")
     op_output.emit(weight, "weight")
-    self.count +=1
+    self.count += 1
+
 
 @jax.jit
 def flag_fn_impl(vis, flag):
   return flag | (jnp.abs(vis) > 1.2)
 
+
 flag_fn = jax.vmap(flag_fn_impl, in_axes=[0, 0], out_axes=0)
 flag_fn = flag_fn_impl
+
 
 class FlagOp(Operator):
   def setup(self, spec: OperatorSpec):
@@ -66,8 +80,10 @@ def sum_fn_impl(vis, weight, flag):
   vis *= weight
   return jnp.nansum(jnp.where(flag != 0, vis, vis.dtype.type(0)))
 
+
 sum_fn = jax.vmap(sum_fn_impl, in_axes=[0, 0, 0], out_axes=0)
 sum_fn = sum_fn_impl
+
 
 class CalibrationOp(Operator):
   def setup(self, spec: OperatorSpec):
